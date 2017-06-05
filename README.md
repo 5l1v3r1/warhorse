@@ -1,4 +1,4 @@
-![alt text](https://github.com/adam-p/markdown-here/raw/master/src/common/images/icon48.png "Warhorse")
+![alt text](https://github.com/war-horse/warhorse/raw/master/logo.png "Warhorse")
 
 Warhorse is an attack framwork for setting up rapid C2 environments.
 
