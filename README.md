@@ -9,6 +9,6 @@ https://www.blackhat.com/us-17/arsenal.html
 
 ## Maintainers
 Tom Steele
-- [@_ralphte01](https://twitter.com/ralphte01)
+- [@ralphte01](https://twitter.com/ralphte01)
 - ralph@thedarkcloud.net
 
