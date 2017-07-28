@@ -1,0 +1,23 @@
+{
+  "name": "warhorse-test-client",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "start": "node warhorse.js"
+  },
+  "dependencies": {
+    "aws-sdk": "^2.82.0",
+    "cfn": "^1.1.0",
+    "cli-output": "^1.0.0",
+    "debug": "~2.6.3",
+    "figlet": "^1.2.0",
+    "fs": "0.0.1-security",
+    "generate-password": "^1.3.0",
+    "lodash": "^4.17.4",
+    "nedb": "^1.8.0",
+    "q": "^1.5.0",
+    "request": "^2.81.0",
+    "restler": "^3.4.0",
+    "vorpal": "^1.12.0"
+  }
+}

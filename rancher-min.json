@@ -1,0 +1,256 @@
+{
+    "AWSTemplateFormatVersion": "2010-09-09",
+    "Parameters": {
+        "HealthCheckGracePeriod": {
+            "Type": "String",
+            "Description": "The length of time in seconds after a new EC2 instance comes into service that Auto Scaling starts checking its health.",
+            "Default": 600
+        },
+        "InstanceType": {
+            "Type": "String",
+            "Description": "The size of the instances",
+            "Default": "t2.small"
+        },
+        "ImageId": {
+            "Type": "String",
+            "Default": ""
+        },
+        "KeyName": {
+            "Type": "AWS::EC2::KeyPair::KeyName",
+            "Default": ""
+        },
+        "VpcId": {
+            "Type": "AWS::EC2::VPC::Id",
+            "Default": ""
+        },
+        "PublicSubnets": {
+            "Type": "List<AWS::EC2::Subnet::Id>",
+            "Default": ""
+        },
+        "ELBConnectionDraining": {
+            "Type": "String",
+            "Description": "Connection draining ensures that the load balancer completes serving all in-flight requests made to a registered instance when the instance is deregistered or becomes unhealthy",
+            "Default": 30
+        }
+    },
+    "Resources": {
+        "ComponentAutoScalingGroup": {
+            "Type": "AWS::AutoScaling::AutoScalingGroup",
+            "UpdatePolicy": {
+                "AutoScalingRollingUpdate": {
+                    "MinInstancesInService": 1,
+                    "MaxBatchSize": 1,
+                    "PauseTime": "PT0S"
+                }
+            },
+            "Properties": {
+                "VPCZoneIdentifier": {
+                    "Ref": "PublicSubnets"
+                },
+                "Tags": [
+                    {
+                        "Value": "rancher",
+                        "PropagateAtLaunch": true,
+                        "Key": "Project"
+                    },
+                    {
+                        "Value": "rancher-server",
+                        "PropagateAtLaunch": true,
+                        "Key": "Name"
+                    },
+                    {
+                        "Value": "rancher-server",
+                        "PropagateAtLaunch": true,
+                        "Key": "Component"
+                    }
+                ],
+                "LoadBalancerNames": [
+                    {
+                        "Ref": "ComponentElasticLoadBalancer"
+                    }
+                ],
+                "MinSize": 1,
+                "MaxSize": 2,
+                "LaunchConfigurationName": {
+                    "Ref": "ComponentLaunchConfiguration"
+                },
+                "AvailabilityZones": {
+                    "Fn::GetAZs": ""
+                },
+                "HealthCheckType": "ELB",
+                "HealthCheckGracePeriod": {
+                    "Ref": "HealthCheckGracePeriod"
+                }
+            }
+        },
+        "ComponentLaunchConfiguration": {
+            "Type": "AWS::AutoScaling::LaunchConfiguration",
+            "Properties": {
+                "KeyName": {
+                    "Ref": "KeyName"
+                },
+                "SecurityGroups": [
+                    {
+                        "Ref": "ComponentSecurityGroup"
+                    }
+                ],
+                "InstanceType": {
+                    "Ref": "InstanceType"
+                },
+                "ImageId": {
+                    "Ref": "ImageId"
+                },
+                "UserData": {
+                    "Fn::Base64": {
+                        "Fn::Join": [
+                            "",
+                            [
+                                "#cloud-config\n",
+                                "rancher:\n",
+                                "  services:\n",
+                                "    rancher-server:\n",
+                                "      image: rancher/server\n",
+                                "      ports:\n",
+                                "      - 8080:8080\n",
+                                "      restart: always\n"
+                            ]
+                        ]
+                    }
+                }
+            }
+        },
+        "LoadBalancerSecurityGroup": {
+            "Type": "AWS::EC2::SecurityGroup",
+            "Properties": {
+                "SecurityGroupIngress": [
+                    {
+                        "ToPort": 80,
+                        "IpProtocol": "tcp",
+                        "FromPort": 80,
+                        "CidrIp": "0.0.0.0/0"
+                    }
+                ],
+                "VpcId": {
+                    "Ref": "VpcId"
+                },
+                "GroupDescription": "An ELB group allowing access only to from the corresponding component"
+            },
+            "Metadata": {
+                "AWS::CloudFormation::Designer": {
+                    "id": "f8540402-5be1-4691-9851-64c02128a682"
+                }
+            }
+        },
+        "ComponentSecurityGroup": {
+            "Type": "AWS::EC2::SecurityGroup",
+            "Properties": {
+                "SecurityGroupIngress": [
+                    {
+                        "FromPort": 8080,
+                        "ToPort": 8080,
+                        "IpProtocol": "tcp",
+                        "SourceSecurityGroupId": {
+                            "Ref": "LoadBalancerSecurityGroup"
+                        }
+                    },
+                    {
+                        "FromPort": 4500,
+                        "ToPort": 4500,
+                        "IpProtocol": "udp",
+                        "CidrIp": "0.0.0.0/0"
+                    },
+                    {
+                        "FromPort": 22,
+                        "ToPort": 22,
+                        "IpProtocol": "tcp",
+                        "CidrIp": "0.0.0.0/0"
+                    },
+                    {
+                        "FromPort": 500,
+                        "ToPort": 500,
+                        "IpProtocol": "udp",
+                        "CidrIp": "0.0.0.0/0"
+                    }
+                ],
+                "VpcId": {
+                    "Ref": "VpcId"
+                },
+                "GroupDescription": "A component security group allowing access only from the corresponding ELB"
+            },
+            "Metadata": {
+                "AWS::CloudFormation::Designer": {
+                    "id": "30c4c301-0a89-4428-aa96-eebb909e9a49"
+                }
+            }
+        },
+        "ComponentElasticLoadBalancer": {
+            "Type": "AWS::ElasticLoadBalancing::LoadBalancer",
+            "Properties": {
+                "CrossZone": true,
+                "Subnets": {
+                    "Ref": "PublicSubnets"
+                },
+                "Listeners": [
+                    {
+                        "InstancePort": 8080,
+                        "LoadBalancerPort": 80,
+                        "Protocol": "tcp",
+                        "InstanceProtocol": "tcp"
+                    }
+                ],
+                "SecurityGroups": [
+                    {
+                        "Ref": "LoadBalancerSecurityGroup"
+                    }
+                ],
+                "Policies": [
+                    {
+                        "PolicyName": "EnableProxyProtocol",
+                        "InstancePorts": [
+                            "8080"
+                        ],
+                        "PolicyType": "ProxyProtocolPolicyType",
+                        "Attributes": [
+                            {
+                                "Name": "ProxyProtocol",
+                                "Value": "true"
+                            }
+                        ]
+                    }
+                ],
+                "HealthCheck": {
+                    "HealthyThreshold": 3,
+                    "Interval": 15,
+                    "Target": "HTTP:8080/ping",
+                    "Timeout": 10,
+                    "UnhealthyThreshold": 8
+                },
+                "ConnectionDrainingPolicy": {
+                    "Enabled": true,
+                    "Timeout": {
+                        "Ref": "ELBConnectionDraining"
+                    }
+                }
+            }
+        }
+    },
+    "Outputs": {
+        "WebsiteURL": {
+            "Value": {
+                "Fn::Join": [
+                    "",
+                    [
+                        "http://",
+                        {
+                            "Fn::GetAtt": [
+                                "ComponentElasticLoadBalancer",
+                                "DNSName"
+                            ]
+                        }
+                    ]
+                ]
+            },
+            "Description": "URL for newly created rancher application"
+        }
+    }
+}
